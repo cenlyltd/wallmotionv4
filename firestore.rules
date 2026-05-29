@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Products: read public, write admin only ────────────────────────
+    match /products/{productId} {
+      allow read:  if resource.data.active == true;
+      allow write: if false; // admin via Firebase Console / Functions only
+    }
+
+    // ── Orders: user bisa baca order milik sendiri, write via Functions ─
+    match /orders/{orderId} {
+      allow read:   if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if false; // via Cloud Functions only
+      allow update: if false; // via Cloud Functions only
+    }
+
+    // ── Users: user bisa baca/edit profil sendiri ─────────────────────
+    match /users/{userId} {
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      allow create:       if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

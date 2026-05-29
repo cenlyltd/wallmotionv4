@@ -1,0 +1,77 @@
+workflows:
+  android-release:
+    name: WallMotion Android Release
+    max_build_duration: 60
+    environment:
+      android_signing:
+        - wallmotion_keystore        # nama keystore di Codemagic dashboard
+      groups:
+        - firebase_credentials       # group env vars di Codemagic
+      flutter: stable
+      java: 17
+      vars:
+        PACKAGE_NAME: "com.wallmotion.app"
+        GOOGLE_PLAY_TRACK: internal   # internal → alpha → beta → production
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+
+    scripts:
+      # 1. Setup Google Services
+      - name: Setup google-services.json
+        script: |
+          echo $FIREBASE_GOOGLE_SERVICES | base64 --decode > $CM_BUILD_DIR/android/app/google-services.json
+
+      # 2. Get Flutter packages
+      - name: Get packages
+        script: flutter pub get
+
+      # 3. Generate splash & icons
+      - name: Generate splash screen
+        script: dart run flutter_native_splash:create
+      - name: Generate app icons
+        script: dart run flutter_launcher_icons
+
+      # 4. Analyze
+      - name: Analyze
+        script: flutter analyze --no-fatal-infos
+
+      # 5. Build release APK + AAB
+      - name: Build AAB (Play Store)
+        script: |
+          flutter build appbundle \
+            --release \
+            --build-name=1.0.$BUILD_NUMBER \
+            --build-number=$BUILD_NUMBER \
+            --dart-define=MIDTRANS_ENV=$MIDTRANS_ENV \
+            --dart-define=APP_ENV=production
+
+      - name: Build APK (direct install)
+        script: |
+          flutter build apk \
+            --release \
+            --split-per-abi \
+            --build-name=1.0.$BUILD_NUMBER \
+            --build-number=$BUILD_NUMBER
+
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+      - build/app/outputs/apk/release/*.apk
+      - flutter_drive.log
+
+    publishing:
+      # Upload ke Google Play (opsional, aktifkan kalau sudah punya Play Console)
+      # google_play:
+      #   credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+      #   track: $GOOGLE_PLAY_TRACK
+
+      email:
+        recipients:
+          - $NOTIFY_EMAIL
+        notify:
+          success: true
+          failure: true

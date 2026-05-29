@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Preview videos: bisa dibaca siapapun (untuk preview di toko)
+    match /previews/{fileName} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // HD videos: TIDAK bisa diakses langsung dari client
+    // Hanya bisa via signed URL dari Cloud Functions
+    match /videos/{fileName} {
+      allow read:  if false;
+      allow write: if false;
+    }
+  }
+}
